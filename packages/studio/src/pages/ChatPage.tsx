@@ -215,6 +215,9 @@ export function ChatPage({ activeBookId, nav, theme, t, sse: _sse }: ChatPagePro
         return;
       }
 
+      await loadSessionList(null);
+      if (cancelled) return;
+
       const existingId = getBookCreateSessionId();
       if (existingId) {
         await loadSessionDetail(existingId);
@@ -226,6 +229,15 @@ export function ChatPage({ activeBookId, nav, theme, t, sse: _sse }: ChatPagePro
           activateSession(existingId);
           return;
         }
+      }
+
+      const state = useChatStore.getState();
+      const ids = state.sessionIdsByBook.__project__ ?? [];
+      if (ids.length > 0) {
+        activateSession(ids[0]);
+        setBookCreateSessionId(ids[0]);
+        await loadSessionDetail(ids[0]);
+        return;
       }
 
       const newSessionId = await createSession(null);
