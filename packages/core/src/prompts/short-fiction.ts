@@ -45,7 +45,7 @@ export interface ShortFictionPackagePromptInput {
   readonly draftTitle: string;
 }
 
-export function buildShortHitOutlineSystemPrompt(): string {
+export function buildShortFictionOutlineSystemPrompt(): string {
   return [
     "你是商业短篇小说总编，负责把一个商业方向做成完整短篇故事方案。",
     "只基于本次商业方向和用户提供的参考文本创作；没有提供的资料，不要声称读过、引用过或继承过。",
@@ -55,7 +55,7 @@ export function buildShortHitOutlineSystemPrompt(): string {
   ].join("\n");
 }
 
-export function buildShortHitOutlineUserPrompt(input: ShortFictionOutlinePromptInput): string {
+export function buildShortFictionOutlineUserPrompt(input: ShortFictionOutlinePromptInput): string {
   return [
     "## 商业方向",
     input.direction,
@@ -70,14 +70,14 @@ export function buildShortHitOutlineUserPrompt(input: ShortFictionOutlinePromptI
     "可以给标签，但不要穷举标签表；标签服务选题和写作，不替代故事。",
     "",
     "## 输出格式",
-    "=== SHORT_HIT_PLAN_TITLE ===",
+    "=== SHORT_FICTION_PLAN_TITLE ===",
     "只写一行平台感标题",
-    "=== SHORT_HIT_PLAN ===",
+    "=== SHORT_FICTION_PLAN ===",
     "用 Markdown 写完整故事方案，包含：题材/受众、标题打法、开篇小钩子、人物与关系、核心压力、主角赢法、升级链、反转链、结尾回报、逐章方案。",
   ].filter(Boolean).join("\n");
 }
 
-export function buildShortHitOutlineReviewSystemPrompt(): string {
+export function buildShortFictionOutlineReviewSystemPrompt(): string {
   return [
     "你是商业短篇审纲编辑。你不负责打分，也不负责判抄。",
     "你的任务是判断这个故事方案能不能支撑一次写完整篇：题材发动机是否清楚、人物动机是否成立、压力链是否递进、反派反扑是否可信、结尾回报是否够。",
@@ -86,7 +86,7 @@ export function buildShortHitOutlineReviewSystemPrompt(): string {
   ].join("\n");
 }
 
-export function buildShortHitOutlineReviewUserPrompt(input: ShortFictionOutlineReviewPromptInput): string {
+export function buildShortFictionOutlineReviewUserPrompt(input: ShortFictionOutlineReviewPromptInput): string {
   return [
     "## 商业方向",
     input.direction,
@@ -104,7 +104,7 @@ export function buildShortHitOutlineReviewUserPrompt(input: ShortFictionOutlineR
   ].join("\n");
 }
 
-export function buildShortHitOutlineRevisionFollowup(input: ShortFictionOutlineRevisionPromptInput): string {
+export function buildShortFictionOutlineRevisionFollowup(input: ShortFictionOutlineRevisionPromptInput): string {
   return [
     "根据上面的审纲意见，继续给出第二版完整故事方案。",
     "这是同一次创作的第二轮，不要另起炉灶，不要只写修改说明。",
@@ -115,14 +115,14 @@ export function buildShortHitOutlineRevisionFollowup(input: ShortFictionOutlineR
     input.review.trim(),
     "",
     "## 输出格式",
-    "=== SHORT_HIT_PLAN_TITLE ===",
+    "=== SHORT_FICTION_PLAN_TITLE ===",
     "只写一行平台感标题",
-    "=== SHORT_HIT_PLAN ===",
+    "=== SHORT_FICTION_PLAN ===",
     "用 Markdown 写完整第二版故事方案。",
   ].join("\n");
 }
 
-export function buildShortHitWriterSystemPrompt(): string {
+export function buildShortFictionWriterSystemPrompt(): string {
   return [
     "你是中文商业短篇 BatchWriter。你要根据故事方案一次 API 写完整短篇正文。",
     "这不是长篇连载续写，也不是章节梗概。每章都要有当场发生的戏：人物行动、对话或反应、局面变化、章尾继续读的理由。",
@@ -133,13 +133,13 @@ export function buildShortHitWriterSystemPrompt(): string {
   ].join("\n");
 }
 
-export function buildShortHitWriterUserPrompt(input: ShortFictionDraftPromptInput): string {
+export function buildShortFictionWriterUserPrompt(input: ShortFictionDraftPromptInput): string {
   return [
     "## 任务",
     `一次写完整 ${input.chapterCount} 章，每章约 ${input.charsPerChapter} 字。`,
     "先读完整故事方案，再写正文。正文要承接大纲的压力链、证据链、反转链和情绪回报，不要临时改成另一种故事。",
     "",
-    buildShortHitCraftPrompt(),
+    buildShortFictionCraftPrompt(),
     "",
     "## 商业方向",
     input.direction,
@@ -148,9 +148,9 @@ export function buildShortHitWriterUserPrompt(input: ShortFictionDraftPromptInpu
     input.outlineMarkdown,
     "",
     "## 输出格式",
-    "=== SHORT_HIT_TITLE ===",
+    "=== SHORT_FICTION_TITLE ===",
     "短篇标题，只写纯文本平台标题",
-    "=== SHORT_HIT_OPENING_HOOK ===",
+    "=== SHORT_FICTION_OPENING_HOOK ===",
     "可选正文前小钩子，约 200 字；如果不需要独立引子，也要写第 1 章第一屏的入局小场面",
     ...Array.from({ length: input.chapterCount }, (_, index) => {
       const chapter = index + 1;
@@ -164,7 +164,7 @@ export function buildShortHitWriterUserPrompt(input: ShortFictionDraftPromptInpu
   ].join("\n");
 }
 
-export function buildShortHitDraftReviewSystemPrompt(): string {
+export function buildShortFictionDraftReviewSystemPrompt(): string {
   return [
     "你是商业短篇成稿审稿编辑。",
     "你只看内容是否能卖、是否顺、是否有继续读的欲望；不要把审稿变成确定性打分。",
@@ -173,7 +173,7 @@ export function buildShortHitDraftReviewSystemPrompt(): string {
   ].join("\n");
 }
 
-export function buildShortHitDraftReviewUserPrompt(input: ShortFictionDraftReviewPromptInput): string {
+export function buildShortFictionDraftReviewUserPrompt(input: ShortFictionDraftReviewPromptInput): string {
   return [
     "## 商业方向",
     input.direction,
@@ -190,7 +190,7 @@ export function buildShortHitDraftReviewUserPrompt(input: ShortFictionDraftRevie
   ].join("\n");
 }
 
-export function buildShortHitDraftRevisionFollowup(input: ShortFictionDraftRevisionPromptInput): string {
+export function buildShortFictionDraftRevisionFollowup(input: ShortFictionDraftRevisionPromptInput): string {
   return [
     "根据审稿意见，继续写第二版完整正文。",
     "这是同一篇的第二轮写作：保留上一版能打的地方，修掉会让读者出戏或不想读的问题。",
@@ -206,9 +206,9 @@ export function buildShortHitDraftRevisionFollowup(input: ShortFictionDraftRevis
     "- 字数只做校准：偏短补有效场面，偏长删解释和重复反应。",
     "",
     "## 输出格式",
-    "=== SHORT_HIT_TITLE ===",
+    "=== SHORT_FICTION_TITLE ===",
     "短篇标题，只写纯文本平台标题",
-    "=== SHORT_HIT_OPENING_HOOK ===",
+    "=== SHORT_FICTION_OPENING_HOOK ===",
     "可选正文前小钩子，约 200 字；如果不需要独立引子，也要写第 1 章第一屏的入局小场面",
     ...Array.from({ length: input.chapterCount }, (_, index) => {
       const chapter = index + 1;
@@ -222,7 +222,7 @@ export function buildShortHitDraftRevisionFollowup(input: ShortFictionDraftRevis
   ].join("\n");
 }
 
-export function buildShortHitPackageSystemPrompt(): string {
+export function buildShortFictionPackageSystemPrompt(): string {
   return [
     "你是短篇小说包装编辑，负责根据最终正文生成简介、卖点和封面提示词。",
     "不要另起一个和正文不同的主标题。包装必须围绕正文实际标题和剧情。",
@@ -230,7 +230,7 @@ export function buildShortHitPackageSystemPrompt(): string {
   ].join("\n");
 }
 
-export function buildShortHitPackageUserPrompt(input: ShortFictionPackagePromptInput): string {
+export function buildShortFictionPackageUserPrompt(input: ShortFictionPackagePromptInput): string {
   return [
     "## 商业方向",
     input.direction,
@@ -242,18 +242,18 @@ export function buildShortHitPackageUserPrompt(input: ShortFictionPackagePromptI
     trimForPrompt(input.draftMarkdown, 16000),
     "",
     "## 输出格式",
-    "=== SHORT_HIT_PACKAGE_TITLE ===",
+    "=== SHORT_FICTION_PACKAGE_TITLE ===",
     input.draftTitle,
-    "=== SHORT_HIT_INTRO ===",
+    "=== SHORT_FICTION_INTRO ===",
     "100-180字平台简介，直接抓冲突、压迫和回报，不要剧透成流水账。",
-    "=== SHORT_HIT_SELLING_POINTS ===",
+    "=== SHORT_FICTION_SELLING_POINTS ===",
     "- 3到6条卖点，每条一行",
-    "=== SHORT_HIT_COVER_PROMPT ===",
+    "=== SHORT_FICTION_COVER_PROMPT ===",
     "中文封面生成提示词：3:4竖图，主标题区，人物情绪，道具，配色，字体风格，避免事项。",
   ].join("\n");
 }
 
-function buildShortHitCraftPrompt(): string {
+function buildShortFictionCraftPrompt(): string {
   return [
     "## 写法提醒",
     "- 盐溶于汤：人物价值观和野心靠行动表现，不靠口号。",

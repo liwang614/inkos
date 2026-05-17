@@ -3,25 +3,25 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { AgentContext } from "../agents/base.js";
 import {
-  SHORT_HIT_DEFAULT_CHAPTERS,
-  SHORT_HIT_DEFAULT_CHARS_PER_CHAPTER,
-  SHORT_HIT_MAX_CHAPTERS,
-  SHORT_HIT_MAX_CHARS_PER_CHAPTER,
-  SHORT_HIT_MIN_CHAPTERS,
-  SHORT_HIT_MIN_CHARS_PER_CHAPTER,
-  ShortHitDraftReviewerAgent,
-  ShortHitDraftReviserAgent,
-  ShortHitOutlineAgent,
-  ShortHitOutlineReviewerAgent,
-  ShortHitOutlineReviserAgent,
-  ShortHitPackagingAgent,
-  ShortHitWriterAgent,
-  renderShortHitDraftMarkdown,
-  validateShortHitDraftForFinal,
-  type ShortHitBatchDraft,
-  type ShortHitReference,
-  type ShortHitSalesPackage,
-} from "../agents/short-hit.js";
+  SHORT_FICTION_DEFAULT_CHAPTERS,
+  SHORT_FICTION_DEFAULT_CHARS_PER_CHAPTER,
+  SHORT_FICTION_MAX_CHAPTERS,
+  SHORT_FICTION_MAX_CHARS_PER_CHAPTER,
+  SHORT_FICTION_MIN_CHAPTERS,
+  SHORT_FICTION_MIN_CHARS_PER_CHAPTER,
+  ShortFictionDraftReviewerAgent,
+  ShortFictionDraftReviserAgent,
+  ShortFictionOutlineAgent,
+  ShortFictionOutlineReviewerAgent,
+  ShortFictionOutlineReviserAgent,
+  ShortFictionPackagingAgent,
+  ShortFictionWriterAgent,
+  renderShortFictionDraftMarkdown,
+  validateShortFictionDraftForFinal,
+  type ShortFictionBatchDraft,
+  type ShortFictionReference,
+  type ShortFictionSalesPackage,
+} from "../agents/short-fiction.js";
 import { coverSecretKey, resolveCoverProviderPreset, type CoverProviderPreset } from "../llm/cover-providers.js";
 import { loadSecrets } from "../llm/secrets.js";
 import { safeChildPath } from "../utils/path-safety.js";
@@ -39,7 +39,7 @@ export interface ShortFictionRunOptions {
   readonly projectRoot: string;
   readonly direction: string;
   readonly runtimes: ShortFictionRunRuntimes;
-  readonly reference?: ShortHitReference;
+  readonly reference?: ShortFictionReference;
   readonly storyId?: string;
   readonly outDir?: string;
   readonly chapterCount?: number;
@@ -93,21 +93,21 @@ export async function runShortFictionProduction(
   const root = options.projectRoot;
   const chapterCount = boundedInteger(
     options.chapterCount,
-    SHORT_HIT_DEFAULT_CHAPTERS,
+    SHORT_FICTION_DEFAULT_CHAPTERS,
     "chapterCount",
-    SHORT_HIT_MIN_CHAPTERS,
-    SHORT_HIT_MAX_CHAPTERS,
+    SHORT_FICTION_MIN_CHAPTERS,
+    SHORT_FICTION_MAX_CHAPTERS,
   );
   const charsPerChapter = boundedInteger(
     options.charsPerChapter,
-    SHORT_HIT_DEFAULT_CHARS_PER_CHAPTER,
+    SHORT_FICTION_DEFAULT_CHARS_PER_CHAPTER,
     "charsPerChapter",
-    SHORT_HIT_MIN_CHARS_PER_CHAPTER,
-    SHORT_HIT_MAX_CHARS_PER_CHAPTER,
+    SHORT_FICTION_MIN_CHARS_PER_CHAPTER,
+    SHORT_FICTION_MAX_CHARS_PER_CHAPTER,
   );
 
   options.onProgress?.("Creating short fiction outline...");
-  const outlineAgent = new ShortHitOutlineAgent(options.runtimes.planner);
+  const outlineAgent = new ShortFictionOutlineAgent(options.runtimes.planner);
   const outlineV1 = await outlineAgent.createOutline({
     direction: options.direction,
     chapterCount,
@@ -120,7 +120,7 @@ export async function runShortFictionProduction(
   await writeText(root, join(baseDir, "outline", "v001.md"), outlineV1.rawContent);
 
   options.onProgress?.("Reviewing outline...");
-  const outlineReviewer = new ShortHitOutlineReviewerAgent(options.runtimes.outlineReview);
+  const outlineReviewer = new ShortFictionOutlineReviewerAgent(options.runtimes.outlineReview);
   const outlineReview = await outlineReviewer.reviewOutline({
     direction: options.direction,
     outline: outlineV1,
@@ -129,7 +129,7 @@ export async function runShortFictionProduction(
   await writeText(root, join(baseDir, "reviews", "outline-v001.md"), outlineReview);
 
   options.onProgress?.("Revising outline once...");
-  const outlineReviser = new ShortHitOutlineReviserAgent(options.runtimes.planner);
+  const outlineReviser = new ShortFictionOutlineReviserAgent(options.runtimes.planner);
   const outlineV2 = await outlineReviser.reviseOutline({
     direction: options.direction,
     outline: outlineV1,
@@ -141,7 +141,7 @@ export async function runShortFictionProduction(
   await writeText(root, join(baseDir, "outline", "v002.md"), outlineV2.rawContent);
 
   options.onProgress?.("Writing full short fiction draft...");
-  const writer = new ShortHitWriterAgent(options.runtimes.writer);
+  const writer = new ShortFictionWriterAgent(options.runtimes.writer);
   const draftV1 = await writer.writeDraft({
     direction: options.direction,
     outlineMarkdown: outlineV2.rawContent,
@@ -151,7 +151,7 @@ export async function runShortFictionProduction(
   await writeDraftArtifacts(root, baseDir, "v001", draftV1);
 
   options.onProgress?.("Reviewing full draft...");
-  const draftReviewer = new ShortHitDraftReviewerAgent(options.runtimes.draftReview);
+  const draftReviewer = new ShortFictionDraftReviewerAgent(options.runtimes.draftReview);
   const draftReview = await draftReviewer.reviewDraft({
     direction: options.direction,
     outlineMarkdown: outlineV2.rawContent,
@@ -162,7 +162,7 @@ export async function runShortFictionProduction(
   await writeText(root, join(baseDir, "reviews", "draft-v001.md"), draftReview);
 
   options.onProgress?.("Revising full draft once...");
-  const reviser = new ShortHitDraftReviserAgent(options.runtimes.revise);
+  const reviser = new ShortFictionDraftReviserAgent(options.runtimes.revise);
   const draftV2 = await reviser.reviseDraft({
     direction: options.direction,
     outlineMarkdown: outlineV2.rawContent,
@@ -171,12 +171,12 @@ export async function runShortFictionProduction(
     chapterCount,
     charsPerChapter,
   });
-  validateShortHitDraftForFinal(draftV2, { expectedChapters: chapterCount });
+  validateShortFictionDraftForFinal(draftV2, { expectedChapters: chapterCount });
   await writeDraftArtifacts(root, baseDir, "v002", draftV2);
   await writeFinalArtifacts(root, baseDir, draftV2);
 
   options.onProgress?.("Generating synopsis and cover prompt...");
-  const packager = new ShortHitPackagingAgent(options.runtimes.package);
+  const packager = new ShortFictionPackagingAgent(options.runtimes.package);
   const salesPackage = await packager.generatePackage({
     direction: options.direction,
     outlineMarkdown: outlineV2.rawContent,
@@ -220,7 +220,7 @@ export async function generateShortFictionCover(
   }
 
   const outputDir = normalizeOutputDir(options.outputDir ?? join("covers", safeSegment(title)));
-  const salesPackage: ShortHitSalesPackage = {
+  const salesPackage: ShortFictionSalesPackage = {
     title,
     intro: options.intro?.trim() ?? "",
     sellingPoints: normalizeSellingPoints(options.sellingPoints),
@@ -253,10 +253,10 @@ async function writeDraftArtifacts(
   root: string,
   baseDir: string,
   version: string,
-  draft: ShortHitBatchDraft,
+  draft: ShortFictionBatchDraft,
 ): Promise<void> {
   const draftDir = join(baseDir, "drafts", version);
-  await writeText(root, join(draftDir, "full.md"), renderShortHitDraftMarkdown(draft));
+  await writeText(root, join(draftDir, "full.md"), renderShortFictionDraftMarkdown(draft));
   await writeJson(root, join(draftDir, "draft.json"), draft);
   await Promise.all(draft.chapters.map((chapter) =>
     writeText(root, join(draftDir, "chapters", `${String(chapter.number).padStart(4, "0")}.md`), [
@@ -267,9 +267,9 @@ async function writeDraftArtifacts(
   ));
 }
 
-async function writeFinalArtifacts(root: string, baseDir: string, draft: ShortHitBatchDraft): Promise<void> {
+async function writeFinalArtifacts(root: string, baseDir: string, draft: ShortFictionBatchDraft): Promise<void> {
   const finalDir = join(baseDir, "final");
-  const markdown = renderShortHitDraftMarkdown(draft);
+  const markdown = renderShortFictionDraftMarkdown(draft);
   await writeText(root, join(finalDir, "full.md"), markdown);
   await writeText(root, join(finalDir, `${safeFileName(draft.storyTitle)}.md`), markdown);
   await writeJson(root, join(finalDir, "short-story.json"), draft);
@@ -282,7 +282,7 @@ async function writeFinalArtifacts(root: string, baseDir: string, draft: ShortHi
   ));
 }
 
-async function writePackageArtifacts(root: string, baseDir: string, salesPackage: ShortHitSalesPackage): Promise<void> {
+async function writePackageArtifacts(root: string, baseDir: string, salesPackage: ShortFictionSalesPackage): Promise<void> {
   const finalDir = join(baseDir, "final");
   await writeJson(root, join(finalDir, "sales-package.json"), salesPackage);
   await writeText(root, join(finalDir, "sales-package.md"), [
@@ -306,7 +306,7 @@ async function writePackageArtifacts(root: string, baseDir: string, salesPackage
 async function generateCoverArtifact(input: {
   readonly root: string;
   readonly baseDir: string;
-  readonly salesPackage: ShortHitSalesPackage;
+  readonly salesPackage: ShortFictionSalesPackage;
   readonly coverBaseUrl?: string;
   readonly coverEndpoint?: string;
   readonly coverModel?: string;
@@ -322,7 +322,7 @@ async function generateCoverArtifact(input: {
 async function generateCoverImageArtifact(input: {
   readonly root: string;
   readonly outputDir: string;
-  readonly salesPackage: ShortHitSalesPackage;
+  readonly salesPackage: ShortFictionSalesPackage;
   readonly coverBaseUrl?: string;
   readonly coverEndpoint?: string;
   readonly coverModel?: string;
@@ -648,7 +648,7 @@ function resolveCoverEndpoint(coverEndpoint?: string, coverBaseUrl?: string): st
   return `${baseUrl.replace(/\/+$/u, "")}/images/generations`;
 }
 
-function buildCoverImagePrompt(salesPackage: ShortHitSalesPackage): string {
+function buildCoverImagePrompt(salesPackage: ShortFictionSalesPackage): string {
   return [
     "为中文商业短篇小说生成手机端平台书封，3:4竖图。",
     `主标题：${salesPackage.title}`,
@@ -728,5 +728,5 @@ function safeFileName(value: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 80);
-  return cleaned || "short-hit";
+  return cleaned || "short-fiction";
 }

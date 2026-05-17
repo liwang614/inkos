@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LLMClient } from "../llm/provider.js";
 import {
-  ShortHitDraftReviserAgent,
-  parseShortHitBatchDraft,
-  validateShortHitDraftForFinal,
-} from "../agents/short-hit.js";
+  ShortFictionDraftReviserAgent,
+  parseShortFictionBatchDraft,
+  validateShortFictionDraftForFinal,
+} from "../agents/short-fiction.js";
 import { saveSecrets } from "../llm/secrets.js";
 import {
   extractGeminiImageBase64,
@@ -32,12 +32,12 @@ function fakeClient(): LLMClient {
   };
 }
 
-describe("public short-hit chain", () => {
-  it("parses a complete tagged short-hit draft", () => {
-    const draft = parseShortHitBatchDraft(`
-=== SHORT_HIT_TITLE ===
+describe("public short-fiction chain", () => {
+  it("parses a complete tagged short-fiction draft", () => {
+    const draft = parseShortFictionBatchDraft(`
+=== SHORT_FICTION_TITLE ===
 我离婚后，全家悔疯了
-=== SHORT_HIT_OPENING_HOOK ===
+=== SHORT_FICTION_OPENING_HOOK ===
 离婚协议递到我面前时，婆婆正在直播间教人做贤妻。
 === CHAPTER 1 TITLE ===
 她把离婚协议递到直播镜头前
@@ -54,12 +54,12 @@ describe("public short-hit chain", () => {
     expect(draft.chapters).toHaveLength(2);
     expect(draft.chapters[0]?.title).toContain("离婚协议");
     expect(draft.chapters[1]?.charCount).toBeGreaterThan(20);
-    expect(() => validateShortHitDraftForFinal(draft, { expectedChapters: 2 })).not.toThrow();
+    expect(() => validateShortFictionDraftForFinal(draft, { expectedChapters: 2 })).not.toThrow();
   });
 
   it("recovers chapter content when a model repeats the title tag instead of the content tag", () => {
-    const draft = parseShortHitBatchDraft(`
-=== SHORT_HIT_TITLE ===
+    const draft = parseShortFictionBatchDraft(`
+=== SHORT_FICTION_TITLE ===
 离婚协议签好那天，我甩出十三页证据清单
 === CHAPTER 1 TITLE ===
 藏在婚纱照后面的摄像头
@@ -81,12 +81,12 @@ describe("public short-hit chain", () => {
     expect(draft.chapters[1]?.title).toBe("她逼小三亲自递上了最后的刀");
     expect(draft.chapters[1]?.content).toContain("陈磊的慌张");
     expect(draft.chapters[2]?.content).toContain("直播链接");
-    expect(() => validateShortHitDraftForFinal(draft, { expectedChapters: 3 })).not.toThrow();
+    expect(() => validateShortFictionDraftForFinal(draft, { expectedChapters: 3 })).not.toThrow();
   });
 
   it("uses the previous draft as assistant context for the second writer pass", async () => {
-    const firstDraft = parseShortHitBatchDraft(`
-=== SHORT_HIT_TITLE ===
+    const firstDraft = parseShortFictionBatchDraft(`
+=== SHORT_FICTION_TITLE ===
 初稿标题
 === CHAPTER 1 TITLE ===
 旧章
@@ -95,10 +95,10 @@ describe("public short-hit chain", () => {
 `, { expectedChapters: 1 });
 
     const chatSpy = vi
-      .spyOn(ShortHitDraftReviserAgent.prototype as never, "chat" as never)
+      .spyOn(ShortFictionDraftReviserAgent.prototype as never, "chat" as never)
       .mockResolvedValue({
         content: `
-=== SHORT_HIT_TITLE ===
+=== SHORT_FICTION_TITLE ===
 新稿标题
 === CHAPTER 1 TITLE ===
 新章
@@ -108,7 +108,7 @@ describe("public short-hit chain", () => {
         usage: ZERO_USAGE,
       });
 
-    const agent = new ShortHitDraftReviserAgent({
+    const agent = new ShortFictionDraftReviserAgent({
       client: fakeClient(),
       model: "fake",
       projectRoot: "/tmp",

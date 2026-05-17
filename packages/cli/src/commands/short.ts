@@ -2,18 +2,18 @@ import { Command } from "commander";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
-  SHORT_HIT_DEFAULT_CHAPTERS,
-  SHORT_HIT_DEFAULT_CHARS_PER_CHAPTER,
-  SHORT_HIT_MAX_CHAPTERS,
-  SHORT_HIT_MAX_CHARS_PER_CHAPTER,
-  SHORT_HIT_MIN_CHAPTERS,
-  SHORT_HIT_MIN_CHARS_PER_CHAPTER,
+  SHORT_FICTION_DEFAULT_CHAPTERS,
+  SHORT_FICTION_DEFAULT_CHARS_PER_CHAPTER,
+  SHORT_FICTION_MAX_CHAPTERS,
+  SHORT_FICTION_MAX_CHARS_PER_CHAPTER,
+  SHORT_FICTION_MIN_CHAPTERS,
+  SHORT_FICTION_MIN_CHARS_PER_CHAPTER,
   createLLMClient,
   runShortFictionProduction,
   type LLMConfig,
   type Logger,
   type OnStreamProgress,
-  type ShortHitReference,
+  type ShortFictionReference,
 } from "@actalk/inkos-core";
 import { buildPipelineConfig, findProjectRoot, loadConfig, log, logError } from "../utils.js";
 
@@ -29,8 +29,8 @@ shortCommand
   .option("--reference <path>", "Optional reference notes/text")
   .option("--story-id <id>", "Output story id under shorts/")
   .option("--out-dir <path>", "Output directory", "shorts")
-  .option("--chapters <n>", "Complete short chapter count (12-18)", String(SHORT_HIT_DEFAULT_CHAPTERS))
-  .option("--chars <n>", "Target characters per chapter (900-1200)", String(SHORT_HIT_DEFAULT_CHARS_PER_CHAPTER))
+  .option("--chapters <n>", "Complete short chapter count (12-18)", String(SHORT_FICTION_DEFAULT_CHAPTERS))
+  .option("--chars <n>", "Target characters per chapter (900-1200)", String(SHORT_FICTION_DEFAULT_CHARS_PER_CHAPTER))
   .option("--llm-base-url <url>", "Override LLM base URL")
   .option("--model <model>", "Fallback model for all short stages")
   .option("--planner-model <model>", "Model for outline creation/revision")
@@ -51,17 +51,17 @@ shortCommand
       const root = findProjectRoot();
       const chapterCount = parseBoundedInteger(
         opts.chapters,
-        SHORT_HIT_DEFAULT_CHAPTERS,
+        SHORT_FICTION_DEFAULT_CHAPTERS,
         "chapters",
-        SHORT_HIT_MIN_CHAPTERS,
-        SHORT_HIT_MAX_CHAPTERS,
+        SHORT_FICTION_MIN_CHAPTERS,
+        SHORT_FICTION_MAX_CHAPTERS,
       );
       const charsPerChapter = parseBoundedInteger(
         opts.chars,
-        SHORT_HIT_DEFAULT_CHARS_PER_CHAPTER,
+        SHORT_FICTION_DEFAULT_CHARS_PER_CHAPTER,
         "chars",
-        SHORT_HIT_MIN_CHARS_PER_CHAPTER,
-        SHORT_HIT_MAX_CHARS_PER_CHAPTER,
+        SHORT_FICTION_MIN_CHARS_PER_CHAPTER,
+        SHORT_FICTION_MAX_CHARS_PER_CHAPTER,
       );
       const reference = opts.reference ? await readReference(root, opts.reference) : undefined;
       const models = resolveShortRunModels(opts);
@@ -242,7 +242,7 @@ function buildEnvLLMConfig(options: {
   };
 }
 
-async function readReference(root: string, path: string): Promise<ShortHitReference> {
+async function readReference(root: string, path: string): Promise<ShortFictionReference> {
   const resolved = resolve(root, path);
   return {
     path,
