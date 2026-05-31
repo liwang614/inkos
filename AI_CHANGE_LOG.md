@@ -23,6 +23,25 @@
 
 ---
 
+## 2026-05-31 hook-ledger 关键词证据检查由 critical 降为 warning（修复抽象 hook 名导致的误判 fail）
+
+**动机**：写《夜血同盟》第3、4章时，章节审计 90/91 分却被判 audit-failed，critical 全部来自 `hook-ledger-validator.ts` 的“memo 在 advance/resolve 声明要处理 HX，但正文没有对应落地动作”。实测确认是**误判**：该校验器拿 hook 的引号名（如 H3 "主角危机"、H10 "违规则名单/已死旧人"）切词去正文搜，名字是抽象元标签时正文不会逐字出现（H3/H10 关键词在正文命中 0 次），但正文其实已实质推进（伊莱×7、三角针点、签押等）。LLM 审计员的语义判断也说 H10 已推进——与关键词 critical 自相矛盾。
+
+**为什么不用改 hook 名**：那是打地鼠，新 hook 由 LLM 结算自动命名，大概率还是抽象标签，下章继续误判。
+
+**改动**（`packages/core/src/utils/hook-ledger-validator.ts`）：
+- 把**每条 advance/resolve 的关键词证据检查**从 `severity: "critical"` 降为 `"warning"`（heuristic 不该当硬门一票否决；以连续性审计员语义判断为准）。`HookLedgerViolation.severity` 类型放宽为 `"critical" | "warning"`，description/category 改为“兑现存疑（关键词未命中）”并说明可能因抽象 hook 名漏检。
+- **保留**“揭 1 埋 1”楼层检查为 `critical`（确定性结构规则、无关键词脆性）。
+- 同步测试 `src/__tests__/hook-ledger-validator.test.ts`：原“flags a critical…”用例改为断言 `severity === "warning"`。
+
+**为什么不削弱“hook 必须被回收”**：该关键词检查从不负责“hook 最终是否回收”。回收由别的机制保障，本次均未动：hook 晋升 pass（`runner.ts` 1621）、hook-debt 注入（`composer.ts` 160）、规划师强制升级（pressured/near_payoff ≥5 章必须 advance/resolve）、审计员 hook-debt 警告、以及保留为 critical 的“揭 1 埋 1”楼层。
+
+**验证**：`vitest hook-ledger-validator.test.ts` 18 passed；`npm run build`（core）通过。效果：第3/4章那类 90 分误判 fail 不再发生，改为 warning 挂在 auditIssues 供人工复核，无需再手动降级。
+
+**遗留 / 注意**：本改动与上一条 normalizer 改动同性质（共享引擎、行为微调）。如需回退：`git checkout packages/core/src/utils/hook-ledger-validator.ts packages/core/src/__tests__/hook-ledger-validator.test.ts && (cd packages/core && npm run build)`。
+
+---
+
 ## 2026-05-31 《夜血同盟》第2章排查：根因=opus-4-8 不守输出协议，换 gpt-5.5 解决；normalizer 改动为防御性、可回退
 
 **动机**：用户让查看 `vampire-gang-short/`（书《夜血同盟》，book-id `夜血同盟`）。第2章是 `state-degraded`：正文开头泄漏 `CHAPTER_TITLE/CHAPTER_CONTENT` 脚手架文本；`current_state.md`/`pending_hooks.md` 一直是空占位 `(未更新)`；跨章连续性漂移（名单"末位=三年前下葬之人"这条压轴钩子反复被写错）。

@@ -12,10 +12,25 @@
  * at least one keyword from the ledger line's descriptor (hook name, key
  * noun, etc.). We deliberately do NOT require the draft to repeat the raw
  * hook_id like "H007" — writers don't embed IDs in prose.
+ *
+ * Severity policy:
+ *   - The per-entry keyword-evidence check is a *heuristic* and emits a
+ *     `warning`, NOT a hard `critical`. Keyword matching is brittle when a
+ *     hook's name is an abstract meta-label (e.g. "主角危机", "已死旧人"):
+ *     the prose can genuinely advance the hook ("伊莱…三角针点") without ever
+ *     echoing the label words, producing a false "not landed" verdict. The
+ *     authoritative judgement of whether a hook was acted on is the LLM
+ *     continuity auditor (semantic) plus the long-term hook-debt / promotion
+ *     system; this keyword check only nudges. Whether hooks ever get RESOLVED
+ *     is enforced elsewhere (planner forced-escalation of pressured hooks,
+ *     hook-debt context injection, auditor hook-debt warnings) and by the
+ *     "揭 1 埋 1" floor below — none of which depend on this keyword check.
+ *   - The "揭 1 埋 1" floor stays `critical`: it is a deterministic structural
+ *     rule (resolved count vs opened count) with no keyword brittleness.
  */
 
 export interface HookLedgerViolation {
-  readonly severity: "critical";
+  readonly severity: "critical" | "warning";
   readonly category: string;
   readonly description: string;
   readonly suggestion: string;
@@ -132,10 +147,10 @@ export function validateHookLedger(
   for (const entry of committed) {
     if (!draftEchoesEntry(draftContent, entry)) {
       violations.push({
-        severity: "critical",
-        category: "hook 账未兑现",
-        description: `memo 在 advance/resolve 里声明要处理 ${entry.id}，但正文没有对应的落地动作`,
-        suggestion: `在正文中加入对 ${entry.id} 的具体情节推进（动作、对话、环境变化），或把它从 hook 账里移到 defer 并给出理由`,
+        severity: "warning",
+        category: "hook 账兑现存疑（关键词未命中）",
+        description: `关键词检查未在正文找到 ${entry.id} 的兑现痕迹：可能是真的没落地，也可能因为该 hook 名是抽象标签导致漏检。以连续性审计员的语义判断为准。`,
+        suggestion: `复核正文是否对 ${entry.id} 有具体推进（动作、对话、环境变化）。若确实没写，补上或移到 defer；若已写但 hook 名太抽象，可把 hook 名改成正文会出现的具体锚词。`,
       });
     }
   }
