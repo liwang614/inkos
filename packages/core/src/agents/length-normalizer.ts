@@ -143,16 +143,42 @@ ${input.chapterContent}`;
     const fenced = this.extractFirstFencedBlock(trimmed);
     if (fenced) return fenced;
 
-    const stripped = this.stripCommonWrappers(trimmed);
+    // The normalizer model sometimes echoes the writer's section format
+    // (PRE_WRITE_CHECK / CHAPTER_TITLE / CHAPTER_CONTENT) even though the body
+    // it received was already clean — and usually with the bare marker names,
+    // without the "=== ... ===" delimiters, so the writer parser does not catch
+    // them. When a CHAPTER_CONTENT marker is present, the real body is whatever
+    // follows the last such marker (this drops any preamble + the title block).
+    const afterContentMarker = this.extractAfterChapterContentMarker(trimmed);
+    const base = afterContentMarker ?? trimmed;
+
+    const stripped = this.stripCommonWrappers(base);
     if (stripped !== undefined) {
       // Empty after stripping = response was only wrapper text, use original
       if (!stripped) return fallbackContent;
       // Guard: if stripping removed more than 50% of content, the regex was too aggressive.
-      if (stripped.length < trimmed.length * 0.5) return trimmed;
+      if (stripped.length < base.length * 0.5) return base;
       return stripped;
     }
 
-    return trimmed;
+    return base;
+  }
+
+  private extractAfterChapterContentMarker(content: string): string | undefined {
+    const lines = content.split("\n");
+    let markerIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (this.isChapterContentMarker(lines[i]!.trim())) {
+        markerIndex = i;
+      }
+    }
+    if (markerIndex < 0) return undefined;
+    const body = lines.slice(markerIndex + 1).join("\n").trim();
+    return body || undefined;
+  }
+
+  private isChapterContentMarker(line: string): boolean {
+    return /^(?:={3,}\s*)?CHAPTER_CONTENT(?:\s*={3,})?\s*[：:]?\s*$/.test(line);
   }
 
   private looksTruncated(content: string): boolean {
@@ -195,6 +221,15 @@ ${input.chapterContent}`;
   private isWrapperLine(line: string): boolean {
     if (!line) return false;
     if (/^```/.test(line)) return true;
+    // Bare or ===-wrapped section markers leaked from the writer output format.
+    if (/^(?:={3,}\s*)?(PRE_WRITE_CHECK|CHAPTER_TITLE|CHAPTER_CONTENT|写作自检|章节标题)(?:\s*={3,})?\s*[：:]?$/.test(line)) {
+      return true;
+    }
+    // Normalizer preambles describing the compression/expansion it just performed,
+    // e.g. "正文压缩至目标字数。" / "压缩约430字，保留全部Must Keep与硬线索。"
+    if (/^(正文)?(已)?(压缩|扩写)(约|至|到).*(字|字数|目标|区间|Must\s?Keep|硬线索|正文)/i.test(line)) {
+      return true;
+    }
     if (/^#+\s*(说明|解释|注释|analysis|analysis note)\b/i.test(line)) return true;
 
     if (/^(下面是|以下是).*(正文|章节|压缩|扩写|修正|修改|调整|改写|润色|结果|内容|输出|版本)/i.test(line)) {

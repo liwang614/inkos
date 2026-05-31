@@ -246,6 +246,45 @@ describe("LengthNormalizerAgent", () => {
     expect(result.normalizedContent).not.toContain("```");
   });
 
+  it("strips leaked bare CHAPTER_TITLE/CHAPTER_CONTENT markers and the compression preamble", async () => {
+    const agent = createAgent();
+    const body = "脚步声碾过门外的碎冰，她翻身上窗。" + "她贴着集装箱阴影往冷库挪去。".repeat(12);
+    const chatSpy = vi.spyOn(BaseAgent.prototype as never, "chat").mockResolvedValue({
+      content: [
+        "正文压缩至目标字数。",
+        "",
+        "CHAPTER_TITLE",
+        "按账收命",
+        "CHAPTER_CONTENT",
+        "",
+        body,
+      ].join("\n"),
+      usage: ZERO_USAGE,
+    });
+    const lengthSpec = LengthSpecSchema.parse({
+      target: 220,
+      softMin: 190,
+      softMax: 250,
+      hardMin: 60,
+      hardMax: 400,
+      countingMode: "zh_chars",
+      normalizeMode: "compress",
+    });
+    const draft = "开头。" + "冗余句子。".repeat(80);
+
+    const result = await agent.normalizeChapter({
+      chapterContent: draft,
+      lengthSpec,
+    });
+
+    expect(chatSpy).toHaveBeenCalledTimes(1);
+    expect(result.normalizedContent).toBe(body);
+    expect(result.normalizedContent).not.toContain("CHAPTER_TITLE");
+    expect(result.normalizedContent).not.toContain("CHAPTER_CONTENT");
+    expect(result.normalizedContent).not.toContain("正文压缩至目标字数");
+    expect(result.normalizedContent).not.toContain("按账收命");
+  });
+
   it("falls back to the original chapter when the response contains only wrappers", async () => {
     const agent = createAgent();
     const chatSpy = vi.spyOn(BaseAgent.prototype as never, "chat").mockResolvedValue({
