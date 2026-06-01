@@ -2530,8 +2530,13 @@ describe("PipelineRunner", () => {
     const storyDir = join(state.bookDir(bookId), "story");
     await expect(readFile(join(storyDir, "current_state.md"), "utf-8"))
       .resolves.toContain("final analyzed state");
+    // Hooks are authoritative from the settlement, not the re-analysis: the
+    // analyzer only sees a filtered hook working-set and would silently drop
+    // hooks it wasn't shown, so persistence carries the settlement's pool forward.
     await expect(readFile(join(storyDir, "pending_hooks.md"), "utf-8"))
-      .resolves.toContain("final analyzed hooks");
+      .resolves.toContain("original hooks");
+    await expect(readFile(join(storyDir, "pending_hooks.md"), "utf-8"))
+      .resolves.not.toContain("final analyzed hooks");
     await expect(readFile(join(storyDir, "particle_ledger.md"), "utf-8"))
       .resolves.toContain("final analyzed ledger");
     await expect(readFile(join(storyDir, "chapter_summaries.md"), "utf-8"))

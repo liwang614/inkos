@@ -2683,6 +2683,18 @@ ${matrix}`,
       ...analyzed,
       content: finalContent,
       wordCount: countChapterLength(finalContent, countingMode),
+      // Preserve the settlement's hook accounting. The analyzer is shown only a
+      // filtered hook working-set (buildGovernedHookWorkingSet) and rewrites the
+      // full table from scratch, so any hook it wasn't shown silently disappears.
+      // 阶段2 settlement already processed near-final prose and deterministically
+      // preserved the entire pool (and may carry a structured delta), so it is the
+      // authoritative source for hooks — carrying it forward also keeps the
+      // structured persistence path engaged (saveChapter renders the projection
+      // from runtimeStateDelta and syncLegacyStructuredStateFromMarkdown skips the
+      // markdown→json rebuild when a delta/snapshot is present).
+      updatedHooks: output.updatedHooks,
+      runtimeStateDelta: output.runtimeStateDelta,
+      runtimeStateSnapshot: output.runtimeStateSnapshot,
       postWriteErrors: [],
       postWriteWarnings: [],
       hookHealthIssues: output.hookHealthIssues,
