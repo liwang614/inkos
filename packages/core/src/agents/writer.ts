@@ -664,7 +664,18 @@ export class WriterAgent extends BaseAgent {
         updatedEmotionalArcs: "",
         updatedCharacterMatrix: "",
       };
-    } catch {
+    } catch (deltaError) {
+      // A genuinely absent delta block is the normal legacy case and stays quiet.
+      // A present-but-malformed delta (bad JSON / failed schema) means we are
+      // silently degrading to the markdown path and losing deterministic hook
+      // accounting — surface it so the failure is diagnosable instead of invisible.
+      const message = String(deltaError);
+      if (!/delta block is missing/i.test(message)) {
+        this.logWarn(resolvedLang, {
+          zh: `结算器结构化增量解析失败，回退到 markdown 路径：${message}`,
+          en: `Structured settler delta failed to parse; falling back to markdown path: ${message}`,
+        });
+      }
       const settlement = parseSettlementOutput(response.content, params.genreProfile);
       mergedSettlement = governedControlBlock
         ? {
