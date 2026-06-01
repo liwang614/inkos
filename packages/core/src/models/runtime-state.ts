@@ -16,6 +16,48 @@ export type StateManifest = z.infer<typeof StateManifestSchema>;
 export const HookStatusSchema = z.enum(["open", "progressing", "deferred", "resolved"]);
 export type HookStatus = z.infer<typeof HookStatusSchema>;
 
+/**
+ * Map an arbitrary status token onto the persisted {@link HookStatus} enum.
+ *
+ * The planner / writer lifecycle vocabulary (`planted → pressured → near_payoff
+ * → payoff`) is richer than the four persisted states. The settler echoes those
+ * lifecycle words back into `hookOps.upsert[].status`, so without this mapping a
+ * delta carrying e.g. `"pressured"` fails `RuntimeStateDeltaSchema` validation and
+ * silently degrades the whole book onto the legacy markdown path. Normalizing here
+ * keeps the structured path reachable.
+ */
+export function canonicalizeHookStatus(value: unknown): HookStatus {
+  if (typeof value !== "string") return "open";
+  const raw = value.trim().toLowerCase();
+  if (!raw) return "open";
+
+  // Lifecycle vocabulary (planted/pressured/near_payoff/payoff/…) takes priority,
+  // matched as a whole token so `near_payoff` is not swallowed by the `payoff` rule.
+  const token = raw.replace(/[\s-]+/g, "_");
+  const lifecycle: Record<string, HookStatus> = {
+    planted: "open",
+    seeded: "open",
+    pressured: "progressing",
+    pressure: "progressing",
+    near_payoff: "progressing",
+    near: "progressing",
+    ready: "progressing",
+    escalating: "progressing",
+    payoff: "resolved",
+    paid_off: "resolved",
+    paid: "resolved",
+    stale: "open",
+  };
+  if (token in lifecycle) return lifecycle[token]!;
+
+  // Synonym fallbacks (mirror the markdown bootstrap normalizer).
+  if (/(resolved|closed|done|paid|payoff|已回收|回收|已解决|完成)/i.test(raw)) return "resolved";
+  if (/(deferred|defer|paused|hold|搁置|延后|延期|暂缓)/i.test(raw)) return "deferred";
+  if (/(progress|advanc|escalat|pressur|near|ready|推进|进行中)/i.test(raw)) return "progressing";
+  if (/(open|pending|待定|未回收)/i.test(raw)) return "open";
+  return "open";
+}
+
 export const HookPayoffTimingSchema = z.enum([
   "immediate",
   "near-term",

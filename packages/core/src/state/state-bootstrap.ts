@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  canonicalizeHookStatus,
   ChapterSummariesStateSchema,
   CurrentStateStateSchema,
   HooksStateSchema,
@@ -587,14 +588,17 @@ export function resolveContiguousChapterPrefix(chapterNumbers: ReadonlyArray<num
 }
 
 function normalizeHookStatus(value: string | undefined, warnings: string[], hookId: string): HookStatus {
-  const normalized = (value ?? "").trim().toLowerCase();
-  if (!normalized) return "open";
-  if (/(resolved|closed|done|已回收|回收|完成)/i.test(normalized)) return "resolved";
-  if (/(deferred|paused|hold|搁置|延后|延期)/i.test(normalized)) return "deferred";
-  if (/(progress|active|推进|进行中)/i.test(normalized)) return "progressing";
-  if (/(open|pending|待定|未回收)/i.test(normalized)) return "open";
-  appendWarning(warnings, `${hookId}:status normalized from "${value ?? ""}" to "open"`);
-  return "open";
+  const raw = (value ?? "").trim();
+  if (!raw) return "open";
+  // Share the canonical mapping so legacy markdown re-parse handles the planner
+  // lifecycle vocabulary (planted/pressured/near_payoff/payoff) the same way the
+  // structured delta path does — otherwise "pressured" silently became "open" and
+  // erased every escalation signal on re-bootstrap.
+  const canonical = canonicalizeHookStatus(raw);
+  if (canonical === "open" && !/(planted|seeded|open|pending|待定|未回收|埋设|新增)/i.test(raw)) {
+    appendWarning(warnings, `${hookId}:status normalized from "${value ?? ""}" to "open"`);
+  }
+  return canonical;
 }
 
 function normalizeHookType(value: string | undefined, warnings: string[], hookId: string): string {

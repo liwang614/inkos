@@ -51,6 +51,63 @@ describe("parseSettlerDeltaOutput", () => {
     expect(result.runtimeStateDelta.chapterSummary?.title).toBe("河埠对账");
   });
 
+  it("canonicalizes lifecycle-vocabulary hook statuses instead of dropping to legacy", () => {
+    const result = parseSettlerDeltaOutput([
+      "=== RUNTIME_STATE_DELTA ===",
+      "```json",
+      JSON.stringify({
+        chapter: 8,
+        hookOps: {
+          upsert: [
+            {
+              hookId: "H_Model_Poison",
+              startChapter: 1,
+              type: "核心线索",
+              status: "pressured",
+              lastAdvancedChapter: 8,
+              expectedPayoff: "第8-9章",
+              notes: "客户侧告警先于回滚",
+            },
+            {
+              hookId: "H_Field_Consultant_Scar",
+              startChapter: 4,
+              type: "敌方威胁",
+              status: "near_payoff",
+              lastAdvancedChapter: 8,
+            },
+            {
+              hookId: "H_Old_Seal",
+              startChapter: 4,
+              type: "核心卡点",
+              status: "payoff",
+              lastAdvancedChapter: 8,
+            },
+            {
+              hookId: "H_Fresh_Seed",
+              startChapter: 8,
+              type: "敌方线索",
+              status: "planted",
+              lastAdvancedChapter: 8,
+            },
+          ],
+          mention: [],
+          resolve: [],
+          defer: [],
+        },
+        notes: [],
+      }),
+      "```",
+    ].join("\n"));
+
+    const byId = new Map(
+      result.runtimeStateDelta.hookOps.upsert.map((hook) => [hook.hookId, hook.status]),
+    );
+    expect(byId.get("H_Model_Poison")).toBe("progressing");
+    expect(byId.get("H_Field_Consultant_Scar")).toBe("progressing");
+    expect(byId.get("H_Old_Seal")).toBe("resolved");
+    expect(byId.get("H_Fresh_Seed")).toBe("open");
+  });
+
   it("rejects invalid runtime-state delta payloads", () => {
     expect(() =>
       parseSettlerDeltaOutput([

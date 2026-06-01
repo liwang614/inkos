@@ -1,4 +1,5 @@
 import {
+  canonicalizeHookStatus,
   RuntimeStateDeltaSchema,
   type RuntimeStateDelta,
 } from "../models/runtime-state.js";
@@ -31,7 +32,7 @@ export function parseSettlerDeltaOutput(content: string): SettlerDeltaOutput {
   const jsonPayload = stripCodeFence(rawDelta);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(sanitizeJSON(jsonPayload));
+    parsed = normalizeDeltaHookStatuses(JSON.parse(sanitizeJSON(jsonPayload)));
   } catch (error) {
     throw new Error(`runtime state delta is not valid JSON: ${String(error)}`);
   }
@@ -44,6 +45,29 @@ export function parseSettlerDeltaOutput(content: string): SettlerDeltaOutput {
   } catch (error) {
     throw new Error(`runtime state delta failed schema validation: ${String(error)}`);
   }
+}
+
+/**
+ * Coerce hook statuses inside `hookOps.upsert` onto the persisted enum before
+ * schema validation. The settler often emits lifecycle-vocabulary statuses
+ * (e.g. `pressured`, `planted`, `near_payoff`) that are not part of
+ * {@link HookStatusSchema}; left untouched they would fail validation and force
+ * the whole book onto the legacy markdown path. Mutates in place and returns the
+ * same value for convenience.
+ */
+function normalizeDeltaHookStatuses(parsed: unknown): unknown {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  const hookOps = (parsed as Record<string, unknown>).hookOps;
+  if (!hookOps || typeof hookOps !== "object") return parsed;
+  const upsert = (hookOps as Record<string, unknown>).upsert;
+  if (!Array.isArray(upsert)) return parsed;
+  for (const hook of upsert) {
+    if (hook && typeof hook === "object" && "status" in hook) {
+      const record = hook as Record<string, unknown>;
+      record.status = canonicalizeHookStatus(record.status);
+    }
+  }
+  return parsed;
 }
 
 function stripCodeFence(value: string): string {
