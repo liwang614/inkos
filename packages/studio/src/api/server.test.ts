@@ -2392,7 +2392,7 @@ describe("createStudioServer daemon lifecycle", () => {
       join(root, "inkos.json"),
       JSON.stringify({
         ...cloneProjectConfig(),
-        writing: { reviewRetries: 3 },
+        writing: { reviewRetries: 3, minChapterWordCount: 1500 },
       }, null, 2),
       "utf-8",
     );
@@ -2409,6 +2409,7 @@ describe("createStudioServer daemon lifecycle", () => {
     expect(response.status).toBe(200);
     expect(pipelineConfigs.at(-1)).toEqual(expect.objectContaining({
       writingReviewRetries: 3,
+      minimumChapterWordCount: 1500,
     }));
   });
 

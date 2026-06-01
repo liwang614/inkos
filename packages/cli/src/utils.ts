@@ -149,6 +149,7 @@ export function buildPipelineConfig(
     defaultLLMConfig: config.llm,
     foundationReviewRetries: config.foundation.reviewRetries,
     writingReviewRetries: config.writing?.reviewRetries ?? 1,
+    minimumChapterWordCount: config.writing?.minChapterWordCount ?? 0,
     modelOverrides: config.modelOverrides,
     inputGovernanceMode: extra?.inputGovernanceMode ?? config.inputGovernanceMode,
     notifyChannels: extra?.notifyChannels ?? config.notify,

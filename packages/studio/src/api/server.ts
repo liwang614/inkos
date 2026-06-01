@@ -1298,6 +1298,7 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string) {
       defaultLLMConfig: currentConfig.llm,
       foundationReviewRetries: currentConfig.foundation?.reviewRetries ?? 2,
       writingReviewRetries: currentConfig.writing?.reviewRetries ?? 1,
+      minimumChapterWordCount: currentConfig.writing?.minChapterWordCount ?? 0,
       modelOverrides: currentConfig.modelOverrides,
       notifyChannels: currentConfig.notify,
       logger,

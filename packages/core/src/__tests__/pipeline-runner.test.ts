@@ -2131,6 +2131,48 @@ describe("PipelineRunner", () => {
     }
   });
 
+  it("applies configured minimum chapter length to draft overrides", async () => {
+    const { root, runner, bookId } = await createRunnerFixture({
+      minimumChapterWordCount: 1500,
+    });
+    const shortDraft = "短".repeat(1200);
+    const normalizedDraft = "足".repeat(1500);
+
+    vi.spyOn(WriterAgent.prototype, "writeChapter").mockResolvedValue(
+      createWriterOutput({
+        chapterNumber: 1,
+        content: shortDraft,
+        wordCount: shortDraft.length,
+      }),
+    );
+    const normalizeChapter = vi.mocked(
+      LengthNormalizerAgent.prototype.normalizeChapter,
+    ).mockResolvedValue({
+      normalizedContent: normalizedDraft,
+      finalCount: normalizedDraft.length,
+      applied: true,
+      mode: "expand",
+      tokenUsage: ZERO_USAGE,
+    });
+
+    try {
+      const result = await runner.writeDraft(bookId, undefined, 1200);
+
+      expect(normalizeChapter).toHaveBeenCalled();
+      expect(normalizeChapter.mock.calls[0]?.[0]).toMatchObject({
+        chapterContent: shortDraft,
+        lengthSpec: expect.objectContaining({
+          target: 1500,
+          softMin: 1500,
+          hardMin: 1500,
+        }),
+      });
+      expect(result.wordCount).toBe(1500);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("records a length warning when a single normalize pass still misses the hard range", async () => {
     const { root, runner, state, bookId } = await createRunnerFixture();
     const overlongDraft = "冗余句子。".repeat(60);

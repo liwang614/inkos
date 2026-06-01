@@ -353,12 +353,14 @@ describe("ProjectConfigSchema", () => {
   it("defaults long-form writing review retries to one and accepts project overrides", () => {
     const defaults = ProjectConfigSchema.parse(validProject);
     expect(defaults.writing.reviewRetries).toBe(1);
+    expect(defaults.writing.minChapterWordCount).toBe(0);
 
     const overridden = ProjectConfigSchema.parse({
       ...validProject,
-      writing: { reviewRetries: 3 },
+      writing: { reviewRetries: 3, minChapterWordCount: 1500 },
     });
     expect(overridden.writing.reviewRetries).toBe(3);
+    expect(overridden.writing.minChapterWordCount).toBe(1500);
   });
 
   it("applies default empty notify array", () => {

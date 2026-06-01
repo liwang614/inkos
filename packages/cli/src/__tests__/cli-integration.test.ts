@@ -205,6 +205,18 @@ describe("CLI integration", () => {
       const config = JSON.parse(raw);
       expect(config.writing.reviewRetries).toBe(3);
     });
+
+    it("sets minimum generated chapter length", async () => {
+      const initialized = await stat(join(projectDir, "inkos.json")).then(() => true).catch(() => false);
+      if (!initialized) run(["init"]);
+
+      const output = run(["config", "set", "writing.minChapterWordCount", "1500"]);
+      expect(output).toContain("Set writing.minChapterWordCount = 1500");
+
+      const raw = await readFile(join(projectDir, "inkos.json"), "utf-8");
+      const config = JSON.parse(raw);
+      expect(config.writing.minChapterWordCount).toBe(1500);
+    }, DOUBLE_CLI_INVOCATION_TEST_TIMEOUT_MS);
   });
 
   describe("inkos config show", () => {

@@ -9,5 +9,8 @@
     },
     "maxConcurrentBooks": 3
   },
+  "writing": {
+    "minChapterWordCount": 1200
+  },
   "language": "zh"
 }

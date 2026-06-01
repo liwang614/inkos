@@ -63,6 +63,16 @@ describe("length metrics", () => {
     expect(spec.hardMax).toBe(280);
   });
 
+  it("can enforce a configured minimum chapter length", () => {
+    const spec = buildLengthSpec(1200, "zh", { minimum: 1500 });
+
+    expect(spec.target).toBe(1500);
+    expect(spec.softMin).toBe(1500);
+    expect(spec.softMax).toBe(1704);
+    expect(spec.hardMin).toBe(1500);
+    expect(spec.hardMax).toBe(1909);
+  });
+
   it("detects soft and hard range drift", () => {
     const spec = buildLengthSpec(2200, "zh");
 

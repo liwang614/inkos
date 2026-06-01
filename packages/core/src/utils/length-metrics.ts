@@ -6,6 +6,10 @@ const REFERENCE_TARGET = 2200;
 const SOFT_RANGE_DELTA = 300;
 const HARD_RANGE_DELTA = 600;
 
+export interface BuildLengthSpecOptions {
+  readonly minimum?: number;
+}
+
 export function countChapterLength(
   content: string,
   countingMode: LengthCountingMode,
@@ -36,16 +40,24 @@ export function formatLengthCount(
 export function buildLengthSpec(
   target: number,
   language: LengthLanguage = "zh",
+  options: BuildLengthSpecOptions = {},
 ): LengthSpec {
-  const softDelta = scaleRangeDelta(target, SOFT_RANGE_DELTA);
-  const hardDelta = Math.max(softDelta, scaleRangeDelta(target, HARD_RANGE_DELTA));
-  const softMin = Math.max(1, target - softDelta);
-  const softMax = target + softDelta;
-  const hardMin = Math.max(1, target - hardDelta);
-  const hardMax = target + hardDelta;
+  const rawMinimum = options.minimum;
+  const minimum = Number.isFinite(rawMinimum)
+    && (rawMinimum ?? 0) > 0
+    ? Math.floor(rawMinimum as number)
+    : undefined;
+  const resolvedTarget = Math.max(1, Math.floor(target), minimum ?? 1);
+  const softDelta = scaleRangeDelta(resolvedTarget, SOFT_RANGE_DELTA);
+  const hardDelta = Math.max(softDelta, scaleRangeDelta(resolvedTarget, HARD_RANGE_DELTA));
+  const minFloor = minimum ?? 1;
+  const softMin = Math.max(minFloor, resolvedTarget - softDelta);
+  const softMax = resolvedTarget + softDelta;
+  const hardMin = Math.max(minFloor, resolvedTarget - hardDelta);
+  const hardMax = resolvedTarget + hardDelta;
 
   return {
-    target,
+    target: resolvedTarget,
     softMin,
     softMax,
     hardMin,

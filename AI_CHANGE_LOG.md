@@ -23,6 +23,24 @@
 
 ---
 
+## 2026-06-01 撤回 opus 不守协议的"容错层"，保留并落地 minChapterWordCount 最低字数下限
+
+**动机**：工作区里积压了两组**未提交**改动，需要分开处理：
+- **Set A（删除）**：为容忍本地代理 `claude-opus-4-8` 不遵守 InkOS 输出协议而加的"宽松解析 + 二次修复"层（state-validator 从散文里抠 PASS/FAIL、continuity/planner/architect 解析失败后再发一轮修复请求、provider 对 opus-4-8 不发 temperature）。用户决定**不走"改代码容忍坏模型"路线**——上一阶段已确认换 `gpt-5.5` 更省事更稳（见 2026-05-31《第2章排查》条），容错层是打地鼠，删。
+- **Set B（保留+提交）**：`minChapterWordCount` 最低字数下限，是"低下限、取消上限"决策（见 2026-05-31《章节字数策略》条）的**代码落地**。《夜血同盟》已在实际使用——其 6 章 telemetry 的 `softMin/hardMin` 全为 1300，正是 `vampire-gang-short/inkos.json` 配的下限被 `Math.max(minFloor, …)` 抬上来的结果；若删掉 schema 字段，本书配置会校验失败。
+
+**改动**：
+- **撤回 Set A 到 baseline**（`git checkout HEAD --`，无残留）：`state-validator.ts` / `continuity.ts` / `planner.ts` / `architect.ts` / `llm/provider.ts`。
+- **保留 Set B**：`models/project.ts` 的 `WritingConfigSchema` 增 `minChapterWordCount`（默认 0）；`utils/length-metrics.ts` 的 `buildLengthSpec` 增第三参 `BuildLengthSpecOptions.minimum`，把 `target`、`softMin`、`hardMin` 抬到下限（`hardMax` 不受影响=不设上限）；`pipeline/runner.ts` 新增 `buildChapterLengthSpec` 统一透传 `minimumChapterWordCount`，三处 `buildLengthSpec` 调用改走它；cli (`utils.ts`/`commands/config.ts`)、studio (`server.ts`) 接线把配置传进 `PipelineConfig`；`index.ts` 导出 `BuildLengthSpecOptions` 类型。+ 对应测试（length-metrics / models / pipeline-runner / cli-integration / studio server）。
+
+**配置**：`test-project/inkos.json` 增 `writing.minChapterWordCount = 1200`。（`vampire-gang-short/inkos.json` 的 `1300` 早已提交，未在本次改动。）
+
+**验证**：core / cli / studio 三包 `build` 全通过；`length-metrics.test.ts`(9) + `models.test.ts`(99) pass；`pipeline-runner.test.ts -t "minimum chapter length"` pass。
+
+**遗留 / 注意**：Set A 已**彻底删除**，不可回退到那些容错代码。若将来仍要用 `claude-opus-4-8` 跑全管线，正解是换守协议的模型（如 `gpt-5.5`），不要恢复容错层。
+
+---
+
 ## 2026-05-31 hook-ledger 关键词证据检查由 critical 降为 warning（修复抽象 hook 名导致的误判 fail）
 
 **动机**：写《夜血同盟》第3、4章时，章节审计 90/91 分却被判 audit-failed，critical 全部来自 `hook-ledger-validator.ts` 的“memo 在 advance/resolve 声明要处理 HX，但正文没有对应落地动作”。实测确认是**误判**：该校验器拿 hook 的引号名（如 H3 "主角危机"、H10 "违规则名单/已死旧人"）切词去正文搜，名字是抽象元标签时正文不会逐字出现（H3/H10 关键词在正文命中 0 次），但正文其实已实质推进（伊莱×7、三角针点、签押等）。LLM 审计员的语义判断也说 H10 已推进——与关键词 critical 自相矛盾。

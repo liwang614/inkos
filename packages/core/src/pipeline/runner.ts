@@ -225,6 +225,7 @@ export interface PipelineConfig {
   readonly defaultLLMConfig?: LLMConfig;
   readonly foundationReviewRetries?: number;
   readonly writingReviewRetries?: number;
+  readonly minimumChapterWordCount?: number;
   readonly notifyChannels?: ReadonlyArray<NotifyChannel>;
   readonly radarSources?: ReadonlyArray<RadarSource>;
   readonly externalContext?: string;
@@ -380,6 +381,12 @@ export class PipelineRunner {
 
   private languageFromLengthSpec(lengthSpec: Pick<LengthSpec, "countingMode">): LengthLanguage {
     return lengthSpec.countingMode === "en_words" ? "en" : "zh";
+  }
+
+  private buildChapterLengthSpec(target: number, language: LengthLanguage): LengthSpec {
+    return buildLengthSpec(target, language, {
+      minimum: this.config.minimumChapterWordCount,
+    });
   }
 
   private logStage(language: LengthLanguage, message: { zh: string; en: string }): void {
@@ -920,7 +927,7 @@ export class PipelineRunner {
       );
 
       const { profile: gp } = await this.loadGenreProfile(book.genre);
-      const lengthSpec = buildLengthSpec(
+      const lengthSpec = this.buildChapterLengthSpec(
         wordCount ?? book.chapterWordCount,
         book.language ?? gp.language,
       );
@@ -1218,7 +1225,7 @@ export class PipelineRunner {
       const lengthLanguage = chapterMeta.lengthTelemetry?.countingMode === "en_words"
         ? "en"
         : language;
-      const lengthSpec = buildLengthSpec(
+      const lengthSpec = this.buildChapterLengthSpec(
         chapterLengthTarget,
         lengthLanguage,
       );
@@ -1530,7 +1537,7 @@ export class PipelineRunner {
       : undefined;
     const { profile: gp } = await this.loadGenreProfile(book.genre);
     const pipelineLang = book.language ?? gp.language;
-    const lengthSpec = buildLengthSpec(
+    const lengthSpec = this.buildChapterLengthSpec(
       wordCount ?? book.chapterWordCount,
       pipelineLang,
     );
