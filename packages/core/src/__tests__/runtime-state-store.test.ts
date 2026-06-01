@@ -300,6 +300,48 @@ describe("runtime-state-store memory helpers", () => {
     expect(snapshot.manifest.migrationWarnings.join("\n")).toContain("empty hook type");
   });
 
+  it("bootstraps lifecycle statuses and 第N章 cells from legacy markdown hooks", async () => {
+    root = await mkdtemp(join(tmpdir(), "inkos-runtime-state-legacy-md-"));
+    const bookDir = join(root, "book");
+    const storyDir = join(bookDir, "story");
+    const chaptersDir = join(bookDir, "chapters");
+    await mkdir(storyDir, { recursive: true });
+    await mkdir(chaptersDir, { recursive: true });
+
+    // No story/state/*.json on disk → bootstrap must derive hooks from the
+    // legacy 8-column markdown the analyzer writes.
+    await Promise.all([
+      writeFile(join(bookDir, "book.json"), JSON.stringify({ language: "zh" }), "utf-8"),
+      writeFile(
+        join(chaptersDir, "index.json"),
+        JSON.stringify(Array.from({ length: 9 }, (_, i) => ({ number: i + 1, title: `Ch${i + 1}`, status: "approved" }))),
+        "utf-8",
+      ),
+      writeFile(join(storyDir, "current_state.md"), "| 字段 | 值 |\n| --- | --- |\n| 当前章节 | 9 |\n", "utf-8"),
+      writeFile(join(storyDir, "chapter_summaries.md"), "", "utf-8"),
+      writeFile(
+        join(storyDir, "pending_hooks.md"),
+        [
+          "| hook_id | 起始章节 | 类型 | 状态 | 最近推进 | 预期回收 | 回收节奏 | 备注 |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- |",
+          "| H_Advanced | 1 | 核心线索 | pressured | 第9章 | 第10章 | mid-arc | 本章推进。 |",
+          "| H_Dormant | 6 | 敌方线索 | open | 0 | 卷一中后期 | mid-arc | 仅埋设。 |",
+          "",
+        ].join("\n"),
+        "utf-8",
+      ),
+    ]);
+
+    const snapshot = await loadRuntimeStateSnapshot(bookDir);
+    const advanced = snapshot.hooks.hooks.find((hook) => hook.hookId === "H_Advanced");
+    const dormant = snapshot.hooks.hooks.find((hook) => hook.hookId === "H_Dormant");
+
+    // "pressured" lifecycle word maps to the persisted enum, and "第9章" parses to 9
+    // instead of being zeroed (which previously blinded the staleness engine).
+    expect(advanced).toEqual(expect.objectContaining({ status: "progressing", lastAdvancedChapter: 9 }));
+    expect(dormant).toEqual(expect.objectContaining({ status: "open", lastAdvancedChapter: 0 }));
+  });
+
   it("arbitrates new hook candidates before applying structured state updates", async () => {
     root = await mkdtemp(join(tmpdir(), "inkos-runtime-state-arbiter-"));
     const bookDir = join(root, "book");

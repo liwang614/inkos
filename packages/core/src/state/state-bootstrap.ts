@@ -295,7 +295,7 @@ function parsePendingHooksStateMarkdown(markdown: string, warnings: string[]) {
             startChapter: parseStrictIntegerWithWarning(row[1], warnings, `${hookId}:startChapter`),
             type: normalizeHookType(row[2], warnings, hookId),
             status: normalizeHookStatus(row[3], warnings, hookId),
-            lastAdvancedChapter: parseStrictIntegerWithWarning(row[4], warnings, `${hookId}:lastAdvancedChapter`),
+            lastAdvancedChapter: parseLastAdvancedChapterCell(row[4], warnings, `${hookId}:lastAdvancedChapter`),
             expectedPayoff: row[5] ?? "",
             payoffTiming: legacyShape ? undefined : normalizeHookPayoffTiming(row[6]),
             notes: legacyShape ? (row[6] ?? "") : (row[7] ?? ""),
@@ -606,6 +606,22 @@ function normalizeHookType(value: string | undefined, warnings: string[], hookId
   if (normalized) return normalized;
   appendWarning(warnings, `${hookId}: empty hook type normalized to "unspecified"`);
   return "unspecified";
+}
+
+// The 最近推进 (last-advanced) cell is written by the legacy markdown analyzer
+// as a chapter label like "第9章", not a bare integer, so a strict integer parse
+// would zero it out and blind the staleness engine. Accept a clean chapter label
+// or bare integer; genuine prose still falls back to 0 (we must not guess a
+// chapter number out of a free-text sentence).
+function parseLastAdvancedChapterCell(value: string | undefined, warnings: string[], fieldLabel: string): number {
+  if (!value) return 0;
+  const trimmed = value.trim();
+  const bare = normalizeHookId(trimmed);
+  if (/^\d+$/.test(bare)) return parseInt(bare, 10);
+  const labelled = trimmed.match(/^(?:第\s*(\d+)\s*章|chapter\s*(\d+))[\s.。:：、]*$/i);
+  if (labelled) return parseInt(labelled[1] ?? labelled[2]!, 10);
+  appendWarning(warnings, `${fieldLabel} normalized from "${value}" to 0`);
+  return 0;
 }
 
 function parseStrictIntegerWithWarning(value: string | undefined, warnings: string[], fieldLabel: string): number {
