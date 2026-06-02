@@ -23,6 +23,26 @@
 
 ---
 
+## 2026-06-02 修复重结算清空伏笔池、章节标题重复、结算记账两处小毛病
+
+**动机**：《她的算法》连写中暴露的一组引擎问题，从灾难级到记账级：
+- **真凶（灾难级）**：第10章结算时整个伏笔池被静默清空（17 钩→0），且仍判 ready-for-review。
+- 连写到 ch11-14 后又浮现两类**复发的记账/外观小毛病**：标题重复"第N章 第N章"、结算回收钩后备注不刷新 / 状态超前正文。
+
+**改动**：
+- `utils/governed-working-set.ts` — `mergeTableMarkdownByKey`：`updated` 解析不出有效表格（占位符 `(伏笔池未更新)`/空/散文/只表头）时返回 `original` 保留旧池，而非返回占位符把整池顶替清空；仅"原本无表"才采用新表。
+- `pipeline/chapter-state-recovery.ts` — 结算恢复边界加确定性闸 `restoreDroppedHookPool`：重试无钩而重试前有钩则用旧池兜底并清掉会重投影空池的 delta/snapshot，使空池无论校验如何标都不被当 recovered。
+- `agents/writer-parser.ts` + `agents/writer.ts` — 新增 `stripRedundantChapterPrefix`，在标题解析源头剥掉模型回显的"第N章/Chapter N"前缀（CJK 形要求 章/回/节/卷 单位，避免误伤"第一滴血"类真标题），堆叠模板不再产出"第N章 第N章"。
+- `agents/settler-prompts.ts` — ①回收伏笔时若旧备注与本章结果不符，要求同时走 `upsert` 刷新备注（光塞 `resolve[]` 不刷新备注）；②加"不要把状态说满"规则，只结算正文已坐实的事实。
+
+**配置**：无。书数据（gitignored）未动；ch10 经修复后重跑、ch11 的 POV 越界手改、ch10/11 假债清理等属书内操作，记于 `her-algorithm/WRITING_PROGRESS.md`。
+
+**验证**：`pnpm --filter @actalk/inkos-core build` 通过；新增回归测试 governed-working-set 5 / chapter-state-recovery 1 / writer-parser 3，相关套件全绿。pipeline-runner 子集 4 个失败经切到改前 tag 复跑确认为**预存无关**（sqlite mock / v2 路由）。ch10-14 实跑验证伏笔池不再清空、标题不再重复。
+
+**遗留 / 注意**：回退点 git tag `resettle-wipe-checkpoint`（真凶修复前）、`settler-notes-checkpoint`（标题/结算修复前）。①②为提示词层、依赖模型遵循（best-effort）；已持久化的旧 stale 备注不会自动回填，如需可单独清理。状态超前 warning 天然难 100% 根除。
+
+---
+
 ## 2026-06-01 撤回 opus 不守协议的"容错层"，保留并落地 minChapterWordCount 最低字数下限
 
 **动机**：工作区里积压了两组**未提交**改动，需要分开处理：
