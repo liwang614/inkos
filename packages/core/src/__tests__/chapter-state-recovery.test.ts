@@ -135,6 +135,55 @@ describe("chapter-state-recovery", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("restores the pre-retry hook pool when the retry drops it to a placeholder", async () => {
+    const realPool = [
+      "| hook_id | 起始章节 | 类型 | 状态 | 最近推进 | 预期回收 | 备注 |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| H_Model_Poison | 1 | 核心线索 | progressing | 9 | 反击构陷 | 投毒链 |",
+      "| H_Chen_Missing | 2 | 支线悬念 | progressing | 7 | 卷二 | 陈默失踪 |",
+    ].join("\n");
+    const logWarn = vi.fn();
+
+    const result = await retrySettlementAfterValidationFailure({
+      writer: {
+        // Retry fixes the state card but omits UPDATED_HOOKS → placeholder pool.
+        settleChapterState: vi.fn(async () => createWriteChapterOutput({
+          updatedState: "fixed state",
+          updatedHooks: "(伏笔池未更新)",
+          runtimeStateDelta: { chapter: 10 } as never,
+          runtimeStateSnapshot: { chapter: 10, facts: [], hooks: [] } as never,
+        })),
+      } as never,
+      validator: {
+        // Pool-wipe only surfaced as a non-fatal warning, so validation "passes".
+        validate: vi.fn(async () => createValidationResult({ passed: true, warnings: [] })),
+      } as never,
+      book: createBook(),
+      bookDir: "/tmp/test-book",
+      chapterNumber: 10,
+      title: "第十章",
+      content: "正文。",
+      oldState: "old state",
+      oldHooks: realPool,
+      originalValidation: createValidationResult(),
+      language: "zh",
+      logWarn,
+      logger: { warn: vi.fn() } as never,
+    });
+
+    expect(result.kind).toBe("recovered");
+    if (result.kind === "recovered") {
+      expect(result.output.updatedHooks).toBe(realPool); // pool preserved, not wiped
+      expect(result.output.updatedHooks).toContain("H_Model_Poison");
+      expect(result.output.updatedHooks).toContain("H_Chen_Missing");
+      expect(result.output.runtimeStateDelta).toBeUndefined();
+      expect(result.output.runtimeStateSnapshot).toBeUndefined();
+    }
+    expect(logWarn).toHaveBeenCalledWith(expect.objectContaining({
+      zh: expect.stringContaining("丢失了整个伏笔池"),
+    }));
+  });
+
   it("returns localized degraded issues when settlement retry still fails", async () => {
     const validatorWarning = createValidationWarning({
       description: "挂坠状态仍与正文冲突",

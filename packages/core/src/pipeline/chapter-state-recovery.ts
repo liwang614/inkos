@@ -11,6 +11,7 @@ import type { BookConfig } from "../models/book.js";
 import type { ChapterMeta } from "../models/chapter.js";
 import type { ContextPackage, RuleStack } from "../models/input-governance.js";
 import type { LengthLanguage } from "../utils/length-metrics.js";
+import { parsePendingHooksMarkdown } from "../utils/memory-retrieval.js";
 
 export interface SettlementRetryParams {
   readonly writer: Pick<WriterAgent, "settleChapterState">;
@@ -68,15 +69,30 @@ export async function retrySettlementAfterValidationFailure(
     ),
   });
 
+  // Defense in depth: the retry settler often fixes the state card but omits the
+  // UPDATED_HOOKS section, yielding a placeholder/empty hook pool. The merge in
+  // settle now preserves the pool, but guard the recovery boundary too so a
+  // dropped pool can never be accepted as "recovered" — regardless of whether the
+  // validator happens to flag it (the original wipe slipped through because the
+  // hook_anomaly was a warning, not a failure). If the retry carries no hooks
+  // while the pre-retry pool did, restore the pre-retry pool deterministically.
+  const guardedOutput = restoreDroppedHookPool(retryOutput, params.oldHooks);
+  if (guardedOutput !== retryOutput) {
+    params.logWarn?.({
+      zh: `结算重试丢失了整个伏笔池（第${params.chapterNumber}章），已用重试前的伏笔池兜底保留。`,
+      en: `Settlement retry dropped the entire hook pool (chapter ${params.chapterNumber}); preserved the pre-retry pool.`,
+    });
+  }
+
   let retryValidation: ValidationResult;
   try {
     retryValidation = await params.validator.validate(
       params.content,
       params.chapterNumber,
       params.oldState,
-      retryOutput.updatedState,
+      guardedOutput.updatedState,
       params.oldHooks,
-      retryOutput.updatedHooks,
+      guardedOutput.updatedHooks,
       params.language,
     );
   } catch (error) {
@@ -96,7 +112,7 @@ export async function retrySettlementAfterValidationFailure(
   if (retryValidation.passed) {
     return {
       kind: "recovered",
-      output: retryOutput,
+      output: guardedOutput,
       validation: retryValidation,
     };
   }
@@ -104,6 +120,31 @@ export async function retrySettlementAfterValidationFailure(
   return {
     kind: "degraded",
     issues: buildStateDegradedIssues(retryValidation.warnings, params.language),
+  };
+}
+
+/**
+ * If a settlement retry returns an empty/placeholder hook pool while the
+ * pre-retry pool still had hooks, fold the pre-retry pool back in instead of
+ * letting the retry silently wipe it. Also clears any structured delta/snapshot
+ * so the persistence path cannot re-derive the emptied pool. Returns the input
+ * unchanged when nothing was dropped (so callers can identity-compare).
+ */
+function restoreDroppedHookPool(
+  retryOutput: WriteChapterOutput,
+  oldHooks: string,
+): WriteChapterOutput {
+  const retryHasHooks = parsePendingHooksMarkdown(retryOutput.updatedHooks ?? "").length > 0;
+  const poolHadHooks = parsePendingHooksMarkdown(oldHooks).length > 0;
+  if (retryHasHooks || !poolHadHooks) {
+    return retryOutput;
+  }
+
+  return {
+    ...retryOutput,
+    updatedHooks: oldHooks,
+    runtimeStateDelta: undefined,
+    runtimeStateSnapshot: undefined,
   };
 }
 
