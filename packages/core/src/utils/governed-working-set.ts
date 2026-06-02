@@ -106,7 +106,18 @@ export function mergeTableMarkdownByKey(
 ): string {
   const originalTable = parseSingleTable(original);
   const updatedTable = parseSingleTable(updated);
-  if (!originalTable || !updatedTable || updatedTable.dataRows.length === 0) {
+  // `updated` carries no usable table data: a placeholder like "(伏笔池未更新)" /
+  // "(hooks pool not updated)" / "(文件尚未创建)", an empty string, or non-table
+  // prose. This merge is incremental — "no new rows given" means "keep what we
+  // had", NOT "replace the pool with this placeholder". Returning `updated` here
+  // is exactly what let a single omitted UPDATED_HOOKS section wipe the entire
+  // hook pool (resettle/recovery path), so preserve `original` instead.
+  if (!updatedTable || updatedTable.dataRows.length === 0) {
+    return original;
+  }
+  // No prior table to merge into (first creation, or `original` was itself a
+  // "(文件尚未创建)" placeholder): adopt the new table as-is.
+  if (!originalTable) {
     return updated;
   }
 

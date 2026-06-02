@@ -2,7 +2,61 @@ import { describe, expect, it } from "vitest";
 import {
   buildGovernedCharacterMatrixWorkingSet,
   buildGovernedHookWorkingSet,
+  mergeTableMarkdownByKey,
 } from "../utils/governed-working-set.js";
+
+describe("mergeTableMarkdownByKey placeholder semantics", () => {
+  const pool = [
+    "| hook_id | 起始章节 | 类型 | 状态 | 最近推进 | 预期回收 | 备注 |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+    "| H_Model_Poison | 1 | 核心线索 | progressing | 9 | 反击构陷 | 投毒链 |",
+    "| H_Chen_Missing | 2 | 支线悬念 | progressing | 7 | 卷二 | 陈默失踪 |",
+  ].join("\n");
+
+  it("preserves the original pool when the update is a placeholder (no wipe)", () => {
+    const merged = mergeTableMarkdownByKey(pool, "(伏笔池未更新)", [0]);
+    expect(merged).toContain("H_Model_Poison");
+    expect(merged).toContain("H_Chen_Missing");
+    expect(merged).not.toContain("伏笔池未更新");
+  });
+
+  it("preserves the original pool when the update is empty or non-table prose", () => {
+    expect(mergeTableMarkdownByKey(pool, "", [0])).toContain("H_Model_Poison");
+    expect(mergeTableMarkdownByKey(pool, "本章没有改动伏笔。", [0])).toContain("H_Chen_Missing");
+  });
+
+  it("preserves the original pool when the update is a header-only table with no data rows", () => {
+    const headerOnly = [
+      "| hook_id | 起始章节 | 类型 | 状态 | 最近推进 | 预期回收 | 备注 |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+    ].join("\n");
+    const merged = mergeTableMarkdownByKey(pool, headerOnly, [0]);
+    expect(merged).toContain("H_Model_Poison");
+    expect(merged).toContain("H_Chen_Missing");
+  });
+
+  it("still upserts new rows and updates existing rows on a real table update", () => {
+    const update = [
+      "| hook_id | 起始章节 | 类型 | 状态 | 最近推进 | 预期回收 | 备注 |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| H_Model_Poison | 1 | 核心线索 | resolved | 10 | 已回收 | 投毒链闭环 |",
+      "| H_New_Lead | 10 | 新线索 | open | 10 | 待定 | 第10章新增 |",
+    ].join("\n");
+    const merged = mergeTableMarkdownByKey(pool, update, [0]);
+    expect(merged).toContain("H_New_Lead");
+    expect(merged).toContain("resolved");
+    expect(merged).toContain("H_Chen_Missing"); // untouched row survives
+  });
+
+  it("adopts the new table when there is no prior table (first creation)", () => {
+    const created = [
+      "| hook_id | 起始章节 | 类型 | 状态 | 最近推进 | 预期回收 | 备注 |",
+      "| --- | --- | --- | --- | --- | --- | --- |",
+      "| H_First | 1 | 线索 | open | 1 | 待定 | 首个伏笔 |",
+    ].join("\n");
+    expect(mergeTableMarkdownByKey("(文件尚未创建)", created, [0])).toContain("H_First");
+  });
+});
 
 describe("governed-working-set", () => {
   it("filters out far-future hooks from the governed hook working set", () => {
