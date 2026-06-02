@@ -31,7 +31,7 @@ export function parseCreativeOutput(
     chapterContent = fallbackExtractContent(content, countingMode);
   }
 
-  let title = extract("CHAPTER_TITLE");
+  let title = stripRedundantChapterPrefix(extract("CHAPTER_TITLE"));
   if (!title) {
     title = fallbackExtractTitle(content, chapterNumber, countingMode);
   }
@@ -141,7 +141,7 @@ export function parseWriterOutput(
 
   return {
     chapterNumber,
-    title: extract("CHAPTER_TITLE") || defaultChapterTitle(chapterNumber, countingMode),
+    title: stripRedundantChapterPrefix(extract("CHAPTER_TITLE")) || defaultChapterTitle(chapterNumber, countingMode),
     content: chapterContent,
     wordCount: countChapterLength(chapterContent, countingMode),
     preWriteCheck: extract("PRE_WRITE_CHECK"),
@@ -163,6 +163,29 @@ function defaultChapterTitle(
   countingMode: LengthCountingMode,
 ): string {
   return countingMode === "en_words" ? `Chapter ${chapterNumber}` : `第${chapterNumber}章`;
+}
+
+// Matches a leading chapter-number label the model sometimes prepends to the
+// title (e.g. "第14章", "第十四章 ", "Chapter 14:"). Requires a chapter-unit
+// suffix (章/回/节/卷) for the CJK form so real titles like "第一滴血" / "第七封信"
+// are left untouched.
+const REDUNDANT_CHAPTER_PREFIX_RE =
+  /^\s*(?:第\s*[\d〇零一二三四五六七八九十百千两]+\s*[章回节卷]|chapter\s*\d+|ch\.?\s*\d+)\s*[:：、。.\-—\s]*/i;
+
+/**
+ * Strip a redundant leading chapter-number label from a title. The persistence
+ * heading template prepends the canonical `# 第N章 ` itself, so a model-echoed
+ * "第N章" in the title would otherwise produce "第N章 第N章 …". Loops to collapse
+ * doubled prefixes. Returns the bare title (possibly empty → caller falls back).
+ */
+export function stripRedundantChapterPrefix(rawTitle: string | undefined): string {
+  let title = (rawTitle ?? "").trim();
+  let previous = "";
+  while (title && title !== previous) {
+    previous = title;
+    title = title.replace(REDUNDANT_CHAPTER_PREFIX_RE, "").trim();
+  }
+  return title;
 }
 
 function defaultStatePlaceholder(countingMode: LengthCountingMode): string {

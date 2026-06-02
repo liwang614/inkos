@@ -1,7 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { parseWriterOutput, parseCreativeOutput, type ParsedWriterOutput } from "../agents/writer-parser.js";
+import { parseWriterOutput, parseCreativeOutput, stripRedundantChapterPrefix, type ParsedWriterOutput } from "../agents/writer-parser.js";
 import type { GenreProfile } from "../models/genre-profile.js";
 import { countChapterLength } from "../utils/length-metrics.js";
+
+describe("stripRedundantChapterPrefix", () => {
+  it("strips a model-echoed 第N章 prefix so the heading template doesn't double it", () => {
+    expect(stripRedundantChapterPrefix("第14章 幽灵脚本与废弃草案")).toBe("幽灵脚本与废弃草案");
+    expect(stripRedundantChapterPrefix("第14章 第14章 幽灵脚本与废弃草案")).toBe("幽灵脚本与废弃草案");
+    expect(stripRedundantChapterPrefix("第9章：闭环里的完美构陷")).toBe("闭环里的完美构陷");
+    expect(stripRedundantChapterPrefix("第十四章 旧疤与通稿")).toBe("旧疤与通稿");
+    expect(stripRedundantChapterPrefix("Chapter 14: Ghost Script")).toBe("Ghost Script");
+  });
+
+  it("leaves real titles that merely start with 第… untouched", () => {
+    expect(stripRedundantChapterPrefix("第一滴血")).toBe("第一滴血");
+    expect(stripRedundantChapterPrefix("第七封信")).toBe("第七封信");
+    expect(stripRedundantChapterPrefix("封条不离手")).toBe("封条不离手");
+  });
+
+  it("returns empty when the title is only a chapter label (caller then falls back)", () => {
+    expect(stripRedundantChapterPrefix("第14章")).toBe("");
+    expect(stripRedundantChapterPrefix("")).toBe("");
+    expect(stripRedundantChapterPrefix(undefined)).toBe("");
+  });
+});
 
 const defaultGenreProfile: GenreProfile = {
   name: "测试",

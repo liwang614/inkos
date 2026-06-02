@@ -36,7 +36,7 @@ import {
   mergeTableMarkdownByKey,
 } from "../utils/governed-working-set.js";
 import { extractPOVFromOutline, filterMatrixByPOV, filterHooksByPOV } from "../utils/pov-filter.js";
-import { parseCreativeOutput } from "./writer-parser.js";
+import { parseCreativeOutput, stripRedundantChapterPrefix } from "./writer-parser.js";
 import { buildRuntimeStateArtifacts, saveRuntimeStateSnapshot, type RuntimeStateArtifacts } from "../state/runtime-state-store.js";
 import type { RuntimeStateSnapshot } from "../state/state-reducer.js";
 import { parsePendingHooksMarkdown } from "../utils/memory-retrieval.js";
@@ -711,11 +711,14 @@ export class WriterAgent extends BaseAgent {
     await mkdir(chaptersDir, { recursive: true });
 
     const paddedNum = String(output.chapterNumber).padStart(4, "0");
-    const filename = `${paddedNum}_${this.sanitizeFilename(output.title)}.md`;
+    // Defensive: parseCreativeOutput already strips a model-echoed "第N章" from
+    // the title, but guard here too so no path can produce "第N章 第N章 …".
+    const cleanTitle = stripRedundantChapterPrefix(output.title) || output.title;
+    const filename = `${paddedNum}_${this.sanitizeFilename(cleanTitle)}.md`;
 
     const heading = language === "en"
-      ? `# Chapter ${output.chapterNumber}: ${output.title}`
-      : `# 第${output.chapterNumber}章 ${output.title}`;
+      ? `# Chapter ${output.chapterNumber}: ${cleanTitle}`
+      : `# 第${output.chapterNumber}章 ${cleanTitle}`;
     const chapterContent = [
       heading,
       "",
