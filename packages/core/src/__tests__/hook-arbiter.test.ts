@@ -121,4 +121,71 @@ describe("arbitrateRuntimeStateDeltaHooks", () => {
     expect(result.resolvedDelta.hookOps.upsert[0]?.hookId).not.toBe("mentor-debt");
     expect(result.resolvedDelta.newHookCandidates).toEqual([]);
   });
+
+  it("adopts a clean suggestedId as an H_ ASCII handle for a new hook", () => {
+    const result = arbitrateRuntimeStateDeltaHooks({
+      hooks: [],
+      delta: createDelta({
+        chapter: 9,
+        newHookCandidates: [
+          {
+            type: "enemy-cleanup",
+            suggestedId: "QiFeng_Cleanup",
+            expectedPayoff: "确认陆衡如何切割齐锋并销毁人事/权限证据",
+            notes: "齐锋账号当天提交权限注销与离职申请。",
+          },
+        ],
+      }),
+    });
+
+    expect(result.resolvedDelta.hookOps.upsert[0]?.hookId).toBe("H_QiFeng_Cleanup");
+  });
+
+  it("falls back to an ASCII handle (never Chinese) when no suggestedId is given", () => {
+    const result = arbitrateRuntimeStateDeltaHooks({
+      hooks: [],
+      delta: createDelta({
+        chapter: 9,
+        newHookCandidates: [
+          {
+            type: "敌方线索",
+            expectedPayoff: "揭开华东银行内部接应者身份",
+            notes: "测试接口在投毒脚本执行后两秒被主动调用。",
+          },
+        ],
+      }),
+    });
+
+    const hookId = result.resolvedDelta.hookOps.upsert[0]?.hookId ?? "";
+    expect(hookId).toMatch(/^H_/);
+    expect(hookId).not.toMatch(/[一-鿿]/); // never embed Chinese in the id
+    expect(hookId).toBe("H_Ch9_Hook");
+  });
+
+  it("normalizes a stray upsert id and a doubled H_ prefix into one clean handle", () => {
+    const result = arbitrateRuntimeStateDeltaHooks({
+      hooks: [],
+      delta: createDelta({
+        chapter: 4,
+        hookOps: {
+          upsert: [
+            {
+              hookId: "H_spoofed-7216 线索",
+              startChapter: 4,
+              type: "敌方线索",
+              status: "open",
+              lastAdvancedChapter: 4,
+              expectedPayoff: "追查 7216 冒用者",
+              notes: "号码冒用沈家名义预约机房。",
+            },
+          ],
+          mention: [],
+          resolve: [],
+          defer: [],
+        },
+      }),
+    });
+
+    expect(result.resolvedDelta.hookOps.upsert[0]?.hookId).toBe("H_Spoofed_7216");
+  });
 });

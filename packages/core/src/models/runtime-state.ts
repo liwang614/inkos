@@ -160,6 +160,10 @@ export const NewHookCandidateSchema = z.object({
   expectedPayoff: z.string().default(""),
   payoffTiming: HookPayoffTimingSchema.optional(),
   notes: z.string().default(""),
+  // Optional clean ASCII handle the settler proposes for a brand-new thread
+  // (e.g. "QiFeng_Cleanup"). The arbiter still owns the create/dedup decision;
+  // this only suggests the *name*, which is sanitized + H_-prefixed before use.
+  suggestedId: z.string().optional(),
 });
 
 export type NewHookCandidate = z.infer<typeof NewHookCandidateSchema>;

@@ -4,7 +4,6 @@ import {
   type NewHookCandidate,
   type RuntimeStateDelta,
 } from "../models/runtime-state.js";
-import { normalizeHookId } from "./story-markdown.js";
 import { evaluateHookAdmission } from "./hook-governance.js";
 import { resolveHookPayoffTiming } from "./hook-lifecycle.js";
 
@@ -171,7 +170,7 @@ function createCanonicalHook(params: {
   readonly existingIds: ReadonlySet<string>;
 }): HookRecord {
   return {
-    hookId: buildCanonicalHookId(params.candidate, params.existingIds),
+    hookId: buildCanonicalHookId(params.candidate, params.existingIds, params.chapter),
     startChapter: params.chapter,
     type: params.candidate.type.trim(),
     status: "open",
@@ -182,44 +181,63 @@ function createCanonicalHook(params: {
   };
 }
 
+// Mint a stable, ASCII, H_-prefixed hook id for a genuinely-new hook. The
+// create/dedup decision is made upstream (evaluateHookAdmission); this only
+// picks the *name*. Priority: an explicit handle the settler proposed
+// (preferredHookId from a stray upsert, or suggestedId on the candidate) \u2192
+// a handle derived from the hook type \u2192 a generic per-chapter fallback. Chinese
+// is intentionally never embedded in the id (it stays in notes/expectedPayoff),
+// both to match the architect's H_Xxx convention and to keep ids from leaking
+// into prose.
 function buildCanonicalHookId(
   candidate: PendingHookCandidate,
   existingIds: ReadonlySet<string>,
+  chapter: number,
 ): string {
-  const preferred = normalizeHookId(candidate.preferredHookId);
-  if (preferred && !existingIds.has(preferred)) {
-    return preferred;
+  // A stray upsert id (preferredHookId) that is already a clean ASCII handle is
+  // preserved verbatim: this keeps id matching stable across chapters and leaves
+  // books that use a different (e.g. lower-kebab) convention untouched. Only when
+  // it is missing or carries non-ASCII (e.g. Chinese) do we mint a fresh handle.
+  const preferred = candidate.preferredHookId?.trim() ?? "";
+  if (preferred && isCleanAsciiHandle(preferred)) {
+    return existingIds.has(preferred) ? dedupeHookId(preferred, existingIds) : preferred;
   }
 
-  const base = slugifyHookStem([
-    candidate.type,
-    candidate.expectedPayoff,
-    candidate.notes,
-  ].join(" "));
-  let next = base;
-  let suffix = 2;
-
-  while (existingIds.has(next)) {
-    next = `${base}-${suffix}`;
-    suffix += 1;
-  }
-
-  return next;
+  const base = canonicalizeHookHandle(preferred)
+    || canonicalizeHookHandle(candidate.suggestedId)
+    || canonicalizeHookHandle(candidate.type)
+    || `H_Ch${Math.max(1, Math.trunc(chapter))}_Hook`;
+  return dedupeHookId(base, existingIds);
 }
 
-function slugifyHookStem(value: string): string {
-  const normalized = value
+function isCleanAsciiHandle(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(value);
+}
+
+function dedupeHookId(base: string, existingIds: ReadonlySet<string>): string {
+  if (!existingIds.has(base)) return base;
+  let suffix = 2;
+  while (existingIds.has(`${base}_${suffix}`)) {
+    suffix += 1;
+  }
+  return `${base}_${suffix}`;
+}
+
+// Turn an arbitrary suggestion ("QiFeng_Cleanup", "enemy-cleanup", "H_Foo",
+// "\u654c\u65b9\u7ebf\u7d22") into an `H_PascalCase` ASCII handle, or "" when it carries no ASCII
+// content (e.g. a pure-Chinese string) so the caller can fall back.
+function canonicalizeHookHandle(raw: string | undefined): string {
+  if (!raw) return "";
+  const segments = raw
     .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const englishTerms = (normalized.match(/[a-z0-9]{3,}/g) ?? [])
-    .filter((term) => !STOP_WORDS.has(term))
-    .slice(0, 5);
-  const chineseTerms = (normalized.match(/[\u4e00-\u9fff]{2,6}/g) ?? []).slice(0, 3);
-  const stem = [...englishTerms, ...chineseTerms].join("-").slice(0, 64).replace(/-+$/g, "");
-  return stem || "hook";
+    .replace(/^[hH]_+/, "")            // avoid a doubled H_ prefix
+    .replace(/[^A-Za-z0-9]+/g, " ")    // drop CJK / punctuation
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1));
+  if (segments.length === 0) return "";
+  return `H_${segments.join("_")}`.slice(0, 60).replace(/_+$/g, "");
 }
 
 function isPureRestatement(candidate: NewHookCandidate, existing: HookRecord): boolean {
